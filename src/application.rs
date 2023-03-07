@@ -23,6 +23,7 @@ impl Application {
     /// ```rust
     /// Application::new("0.0.0.0:80", Node::root())
     /// ```
+    
     pub fn new(
         addr: &str,
         root: Service,
@@ -33,13 +34,10 @@ impl Application {
         })
     }
 
+    /// Initialize main application loop. This method is blocking and will only return on close or
+    /// error
     pub fn run(self) -> Result<(), Error> {
         let rt = Runtime::new().map_err(|_| Error::FailedToInitializeRuntime)?;
-
-        //Enter tokio runtime context allowing thread spawning
-        // rt.enter();
-
-        //Spawn tokio runtime
 
         let res = rt.block_on(async move {
             'main: loop {
