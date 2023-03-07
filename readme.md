@@ -10,21 +10,21 @@ Simple Http is focused on simplicity while still maintaining speed. This library
 
 Order of tasks not necessarily in order of completion
 
-[x] Basic routing
+- [x] Basic routing
 
-[x] URL parameters
+- [x] URL parameters
 
-[ ] Method routing
+- [ ] Method routing
 
-[ ] Better response types
+- [ ] Better response types
 
-[ ] Application wide resources/context
+- [ ] Application wide resources/context
 
-[ ] Websockets
+- [ ] Websockets
 
-[ ] Ssl/Https
+- [ ] Ssl/Https
 
-[ ] Unknown
+- [ ] Unknown
 
 ## Example
 
