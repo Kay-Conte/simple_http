@@ -28,7 +28,9 @@ Order of tasks not necessarily in order of completion
 
 ## Example
 
-A basic hello world program using simpl-http:
+Run examples using `cargo run --example example_name`
+
+A basic hello world program using simple-http:
 
 ```rust
 use simple_http::{Service, Application, System, Request, Response, StatusCode};
