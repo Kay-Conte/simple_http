@@ -5,20 +5,27 @@ use tokio::runtime::Runtime;
 
 use crate::{
     error::Error,
-    node::{Node, Service},
+    node::{Service, System},
     response::Response,
 };
 
 /// Main application responsible for handling all net requests, resources, threading, and routing
+/// this should be the base of any application made on simple-http
 pub struct Application {
-    root: Arc<Node>,
+    root: Arc<Service>,
     server: Server,
 }
 
 impl Application {
+    /// Constructs a new instance of an application given an address structured as: `ip:port` and a
+    /// root node.
+    ///
+    /// ```rust
+    /// Application::new("0.0.0.0:80", Node::root())
+    /// ```
     pub fn new(
         addr: &str,
-        root: Node,
+        root: Service,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync + 'static>> {
         Ok(Self {
             root: Arc::new(root),
@@ -27,8 +34,6 @@ impl Application {
     }
 
     pub fn run(self) -> Result<(), Error> {
-        println!("Starting runtime");
-
         let rt = Runtime::new().map_err(|_| Error::FailedToInitializeRuntime)?;
 
         //Enter tokio runtime context allowing thread spawning
@@ -36,59 +41,41 @@ impl Application {
 
         //Spawn tokio runtime
 
-        println!("Starting main thread");
-
         let res = rt.block_on(async move {
-            println!("Creating stream");
-
-            'server: loop {
-                println!("looping");
-
-                // TODO recv is blocking move to non blocking api
+            'main: loop {
                 let Ok(tiny_request) = self.server.recv() else {
-                    println!("Server recv ended");
                     return Err(Error::ServerClosed);
                 };
 
-                //TODO wrap root node in ARC and spawn thread here
-
                 let mut url_values = HashMap::<String, String>::new();
-                let mut services = Vec::<&Service>::new();
+                let mut services = Vec::<&System>::new();
 
                 let mut cur_node = self.root.as_ref();
 
-                if let Some(service) = cur_node.service() {
-                    services.push(service);
-                }
+                let mut segment_iter = tiny_request.url().split_terminator("/").skip(1);
 
-                let mut segment_iter = tiny_request.url().split("/").skip(1);
+                'segment_iter: loop {
+                    if let Some(callback) = cur_node.systems() {
+                        services.push(callback)
+                    }
 
-                while let Some(segment) = segment_iter.next() {
+                    if let Some(param) = cur_node.param() {
+                        if let Some(url_value) = segment_iter.next() {
+                            url_values.insert(param.clone(), url_value.to_string());
+                        }
+                    }
+
+                    let Some(segment) = segment_iter.next() else {
+                        break 'segment_iter;
+                    };
+
                     let Some(child) = cur_node.get_child(segment) else {
-                        // invalid path
                         let response = Response::empty(StatusCode(404));
 
                         let _ = tiny_request.respond(response.into());
 
-                        continue 'server;
+                        continue 'main;
                     };
-
-                    if let Some(callback) = child.service() {
-                        services.push(callback)
-                    }
-
-                    if let Some(param) = child.param() {
-                        if let Some(url_value) = segment_iter.next() {
-                            url_values.insert(param.clone(), url_value.to_string());
-                        } else {
-                            // invalid path
-                            let response = Response::empty(StatusCode(404));
-
-                            let _ = tiny_request.respond(response.into());
-
-                            continue 'server;
-                        }
-                    }
 
                     cur_node = child;
                 }
@@ -98,7 +85,7 @@ impl Application {
                 for service in services {
                     if let Some(response) = service.call(&request) {
                         let _ = tiny_request.respond(response.into());
-                        continue 'server;
+                        continue 'main;
                     }
                 }
 

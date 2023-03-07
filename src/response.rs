@@ -20,14 +20,29 @@ impl Response {
         data_length: Option<usize>,
         additional_headers: Option<Receiver<Header>>,
     ) -> Self {
-        Response(
+        Self(
             tiny_http::Response::new(status_code, headers, data, data_length, additional_headers)
                 .boxed(),
         )
     }
 
+    /// Status code 200 with file in the body
+    pub fn file(file: File) -> Self {
+        Self(tiny_http::Response::from_file(file).boxed())
+    }
+
     /// Empty response used to send status codes
     pub fn empty(status_code: StatusCode) -> Self {
-        Response(tiny_http::Response::empty(status_code).boxed())
+        Self(tiny_http::Response::empty(status_code).boxed())
+    }
+
+    /// Insert a header to the underlying `Response` object
+    pub fn with_header<H>(mut self, header: H) -> Self
+    where
+        H: Into<Header>,
+    {
+        self.0 = self.0.with_header(header);
+
+        self
     }
 }

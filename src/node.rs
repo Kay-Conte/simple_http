@@ -4,57 +4,66 @@ use crate::{Request, Response};
 
 /// Service callback type used by application
 
-pub type ServiceFn = fn(&Request) -> Option<Response>;
+pub type SystemFn = fn(&Request) -> Option<Response>;
 
-pub struct Service {
-    services: Vec<ServiceFn>,
+pub struct System {
+    collection: Vec<SystemFn>,
 }
 
-impl Service {
-    pub fn new(services: Vec<ServiceFn>) -> Self {
+impl System {
+    pub fn new(services: Vec<SystemFn>) -> Self {
         Self {
-            services,       
+            collection: services,
         }
     }
 
-    pub fn single(service: ServiceFn) -> Self {
+    pub fn single(service: SystemFn) -> Self {
         Self {
-            services: vec![service],
+            collection: vec![service],
         }
-
     }
 
     pub fn call(&self, request: &Request) -> Option<crate::response::Response> {
+        for system in self.collection.iter() {
+            let res = system(request);
+
+            if res.is_some() {
+                return res;
+            }
+        }
+
         None
     }
 }
 
-impl From<ServiceFn> for Service {
-    fn from(value: ServiceFn) -> Self {
+impl From<SystemFn> for System {
+    fn from(value: SystemFn) -> Self {
         Self::single(value)
     }
 }
 
 /// Simple node type, represents a portion of an http url route
-pub struct Node {
+pub struct Service {
     path: String,
     param: Option<String>,
-    service: Option<Service>,
-    children: HashMap<String, Box<Node>>,
+    systems: Option<System>,
+    children: HashMap<String, Box<Service>>,
 }
 
-impl Node {
-    pub fn new(
-        path: impl Into<String>,
-        service: Option<ServiceFn>,
-        param: Option<String>,
-    ) -> Self {
+impl Service {
+    pub fn new(path: impl Into<String>, service: Option<SystemFn>, param: Option<String>) -> Self {
         Self {
             path: path.into(),
             param,
-            service: service.map(|inner| inner.into()),
+            systems: service.map(|inner| inner.into()),
             children: HashMap::new(),
         }
+    }
+
+    pub fn fold(mut self, callback: fn(&mut Self)) -> Self {
+        callback(&mut self);
+
+        self
     }
 
     /// Constructs root node for application, all applications should start with a root.
@@ -65,50 +74,57 @@ impl Node {
     // Special constructors //
 
     /// Constructs a node with no additional functionality
-    pub fn new_path(path: impl Into<String>) -> Self {
+    pub fn with_path(path: impl Into<String>) -> Self {
         Self {
             path: path.into(),
             param: None,
-            service: None,
+            systems: None,
             children: HashMap::new(),
         }
     }
 
     /// Constructs a node with only a service
-    pub fn new_service(path: impl Into<String>, callback: impl Into<Service>) -> Self {
+    pub fn with_system(path: impl Into<String>, callback: impl Into<System>) -> Self {
         Self {
             path: path.into(),
             param: None,
-            service: Some(callback.into()),
+            systems: Some(callback.into()),
             children: HashMap::new(),
         }
     }
 
     /// Constructs a parameter type node used for collecting url values
-    pub fn new_param(path: impl Into<String>, name: String) -> Self {
+    pub fn with_param(path: impl Into<String>, name: String) -> Self {
         Self {
             path: path.into(),
             param: Some(name),
-            service: None,
+            systems: None,
             children: HashMap::new(),
         }
     }
 
-    pub fn add_service(&mut self, service: impl Into<Service>) {
-        todo!()
-    }
+    pub fn add_system(mut self, system: System) -> Self {
+        self.systems = Some(system);
 
-    pub fn get_child(&self, path: &str) -> Option<&Box<Node>> {
-        self.children.get(path)
-    }
-
-    pub fn insert_child(mut self, child: Node) -> Self {
-        self.children.insert(child.path.clone(), child.into());
         self
     }
 
-    pub fn service(&self) -> &Option<Service> {
-        &self.service
+    pub fn add_param(mut self, name: String) -> Self {
+        self.param = Some(name);
+
+        self
+    }
+
+    pub fn get_child(&self, path: &str) -> Option<&Box<Service>> {
+        self.children.get(path)
+    }
+
+    pub fn insert_child(&mut self, child: Service) {
+        self.children.insert(child.path.clone(), child.into());
+    }
+
+    pub fn systems(&self) -> &Option<System> {
+        &self.systems
     }
 
     pub fn param(&self) -> &Option<String> {

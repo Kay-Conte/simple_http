@@ -1,6 +1,6 @@
 [package]
-name = "kaid_core"
-version = "0.1.0"
+name = "simple_http"
+version = "0.0.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 anymap = { version = "0.12.1" }
 
-tiny_http = { workspace = true }
+tiny_http = { version = "0.12.0"}
 
-tokio = { workspace = true, features = ["full"]}
-tokio-stream = { workspace = true }
+tokio = { version = "1.26.0", features = ["full"]}
