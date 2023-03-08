@@ -14,11 +14,11 @@ Order of tasks not necessarily in order of completion
 
 - [x] URL parameters
 
-- [ ] Method routing
-
-- [ ] Better response types
+- [x] Multithreading responses
 
 - [ ] Application wide resources/context
+
+- [ ] Method routing? (This may be done through middleware)
 
 - [ ] Websockets
 

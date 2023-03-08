@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use tiny_http::{Server, StatusCode};
-use tokio::runtime::Runtime;
 
 use crate::{
     error::Error,
