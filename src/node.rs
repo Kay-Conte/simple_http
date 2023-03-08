@@ -14,7 +14,6 @@ pub struct System {
 }
 
 impl System {
-
     /// System constructor
     pub fn new(services: Vec<SystemFn>) -> Self {
         Self {

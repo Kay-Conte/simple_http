@@ -23,15 +23,28 @@ pub struct Request<'a> {
     /// Slice containing all headers
     pub headers: &'a [Header],
 
+    /// Vector containing request body as bytes
+    pub body: Vec<u8>,
+
     /// Length of the body
-    pub body_length: Option<usize>,
+    pub body_length: usize,
 }
 
 impl<'a> Request<'a> {
     pub(crate) fn from_request(
-        request: &'a tiny_http::Request,
+        request: &'a mut tiny_http::Request,
         url_values: HashMap<String, String>,
     ) -> Self {
+        let mut buf = Vec::new();
+
+        let bytes_read = match request.as_reader().read_to_end(&mut buf) {
+            Ok(b) => b,
+            Err(e) => {
+                println!("{}", e);
+                0
+            }
+        };
+
         Self {
             url_values,
 
@@ -45,7 +58,9 @@ impl<'a> Request<'a> {
 
             headers: request.headers(),
 
-            body_length: request.body_length(),
+            body: buf.to_vec(),
+
+            body_length: bytes_read,
         }
     }
 

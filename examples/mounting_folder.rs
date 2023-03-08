@@ -9,29 +9,24 @@ use simple_http::{Application, Method, Request, Response, Service, StatusCode, S
 // `Some(...)` will stop the task and produce a response to the request.
 
 fn root(request: &Request) -> Option<Response> {
-    match *request.method {
-        Method::Get => {
-            let root_path = std::env::current_dir()
-                .expect("Failed to get working directory")
-                .join("examples/html");
+    let root_path = std::env::current_dir()
+        .expect("Failed to get working directory")
+        .join("examples/html");
 
-            let Some(target) = request.get_url_value("file") else {
-                let Ok(file) = File::open(root_path.join("index.html")) else {
-                    dbg!(request.url, request.headers);
-                    return Some(Response::empty(StatusCode(404)));
-                };
+    let Some(target) = request.get_url_value("file") else {
+        let Ok(file) = File::open(root_path.join("index.html")) else {
+            dbg!(request.url, request.headers);
+            return Some(Response::empty(StatusCode(404)));
+        };
 
-                return Some(Response::file(file));
-                };
+        return Some(Response::file(file));
+        };
 
-            let Ok(file) = File::open(root_path.join(target)) else {
-                return Some(Response::empty(StatusCode(404)));
-            };
+    let Ok(file) = File::open(root_path.join(target)) else {
+        return Some(Response::empty(StatusCode(404)));
+    };
 
-            Some(Response::file(file))
-        }
-        _ => Some(Response::empty(StatusCode(405))),
-    }
+    Some(Response::file(file))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

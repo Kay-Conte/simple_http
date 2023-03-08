@@ -23,7 +23,6 @@ impl Application {
     /// ```rust
     /// Application::new("0.0.0.0:80", Node::root())
     /// ```
-    
     pub fn new(
         addr: &str,
         root: Service,
@@ -37,18 +36,18 @@ impl Application {
     /// Initialize main application loop. This method is blocking and will only return on close or
     /// error
     pub fn run(self) -> Result<(), Error> {
-        let rt = Runtime::new().map_err(|_| Error::FailedToInitializeRuntime)?;
-
-        let res = rt.block_on(async move {
-            'main: loop {
-                let Ok(tiny_request) = self.server.recv() else {
+        loop {
+            let Ok(mut tiny_request) = self.server.recv() else {
                     return Err(Error::ServerClosed);
                 };
 
+            let root_clone = self.root.clone();
+
+            std::thread::spawn(move || {
                 let mut url_values = HashMap::<String, String>::new();
                 let mut services = Vec::<&System>::new();
 
-                let mut cur_node = self.root.as_ref();
+                let mut cur_node = root_clone.as_ref();
 
                 let mut segment_iter = tiny_request.url().split_terminator("/").skip(1);
 
@@ -72,25 +71,23 @@ impl Application {
 
                         let _ = tiny_request.respond(response.into());
 
-                        continue 'main;
+                        return;
                     };
 
                     cur_node = child;
                 }
 
-                let request = crate::Request::from_request(&tiny_request, url_values);
+                let request = crate::Request::from_request(&mut tiny_request, url_values);
 
                 for service in services {
                     if let Some(response) = service.call(&request) {
                         let _ = tiny_request.respond(response.into());
-                        continue 'main;
+                        return;
                     }
                 }
 
                 let _ = tiny_request.respond(Response::empty(StatusCode(500)).into());
-            }
-        });
-
-        res
+            });
+        }
     }
 }
