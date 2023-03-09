@@ -4,8 +4,8 @@ use tiny_http::{Server, StatusCode};
 
 use crate::{
     error::Error,
-    node::{Service, System},
     response::Response,
+    service::{Service, System, Command},
 };
 
 /// Main application responsible for handling all net requests, resources, threading, and routing
@@ -37,8 +37,8 @@ impl Application {
     pub fn run(self) -> Result<(), Error> {
         loop {
             let Ok(mut tiny_request) = self.server.recv() else {
-                    return Err(Error::ServerClosed);
-                };
+                return Err(Error::ServerClosed);
+            };
 
             let root_clone = self.root.clone();
 
@@ -51,6 +51,7 @@ impl Application {
                 let mut segment_iter = tiny_request.url().split_terminator("/").skip(1);
 
                 'segment_iter: loop {
+
                     if let Some(callback) = cur_node.systems() {
                         services.push(callback)
                     }
@@ -60,6 +61,7 @@ impl Application {
                             url_values.insert(param.clone(), url_value.to_string());
                         }
                     }
+
 
                     let Some(segment) = segment_iter.next() else {
                         break 'segment_iter;
@@ -76,17 +78,23 @@ impl Application {
                     cur_node = child;
                 }
 
-                let request = crate::Request::from_request(&mut tiny_request, url_values);
-
+                let mut request = crate::Request::from_request(&mut tiny_request, url_values);
+                
                 for service in services {
-                    if let Some(response) = service.call(&request) {
-                        let _ = tiny_request.respond(response.into());
-                        return;
+                    let command = service.call(&mut request);
+
+                    match command {
+                        Command::Respond(response) => {
+                            let _ = tiny_request.respond(response.into());
+                            return;
+                        },
+                        Command::Upgrade(callback) => {todo!("Implement upgrade");},
+                        Command::None => continue,
                     }
                 }
 
                 let _ = tiny_request.respond(Response::empty(StatusCode(500)).into());
-            });
+                });
         }
     }
 }

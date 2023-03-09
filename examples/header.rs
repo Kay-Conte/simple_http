@@ -6,7 +6,7 @@ use simple_http::{Application, Request, Response, Service, StatusCode, System};
 // may have multiple systems and they will always be executed in order. A system that returns
 // `Some(...)` will stop the task and produce a response to the request.
 
-fn json(_request: &Request) -> Option<Response> {
+fn json(_request: &mut Request) -> Option<Response> {
     let content_type = simple_http::Header::from_bytes(
         &b"Content-Type"[..],
         &b"application/json; charset=UTF-8"[..],

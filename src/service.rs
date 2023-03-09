@@ -4,7 +4,30 @@ use crate::{Request, Response};
 
 /// Service callback type used by application
 
-pub type SystemFn = fn(&Request) -> Option<Response>;
+pub type WebsocketFn = fn();
+
+pub type SystemFn = fn(&mut Request) -> Command;
+
+pub enum Command {
+    /// Upgrade current connection to a websocket. This assumes the client is already trying to connect over Ws.
+    Upgrade(WebsocketFn),
+
+    /// Respond to request and don't step further services in tree.
+    Respond(Response),
+
+    /// Do nothing, move on to next service in tree, If no further services, return 404.
+    None,
+}
+
+impl Command {
+    pub fn is_none(&self) -> bool {
+        match self {
+            Command::None => true,
+            _ => false,
+        }
+    }
+
+}
 
 /// Systems are thin wrappers over a list of functions normally associated with a `Service`. Having
 /// multiple systems allows easy reuse of common middleware responsible for gathering information
@@ -29,16 +52,17 @@ impl System {
     }
 
     /// Calls a systems underlying functions in order
-    pub fn call(&self, request: &Request) -> Option<crate::response::Response> {
+    pub fn call(&self, request: &mut Request) -> Command {
         for system in self.collection.iter() {
+
             let res = system(request);
 
-            if res.is_some() {
+            if !res.is_none() {
                 return res;
             }
         }
 
-        None
+        Command::None
     }
 }
 

@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Read};
 
-use tiny_http::{HTTPVersion, Header, Method};
+use tiny_http::{Header};
 
 /// Wrapping request type, this should only be constructed from a tiny_http::Request internally.
 /// This is passed to all systems in an application.
@@ -8,26 +8,7 @@ use tiny_http::{HTTPVersion, Header, Method};
 pub struct Request<'a> {
     url_values: HashMap<String, String>,
 
-    /// Valid url of request not including domain
-    pub url: &'a str,
-
-    /// Whether or not the connection is secure
-    pub secure: bool,
-
-    /// Http method specified i.e. "Post" or "Get"
-    pub method: &'a Method,
-
-    /// Http version specified
-    pub http_version: &'a HTTPVersion,
-
-    /// Slice containing all headers
-    pub headers: &'a [Header],
-
-    /// Vector containing request body as bytes
-    pub body: Vec<u8>,
-
-    /// Length of the body
-    pub body_length: usize,
+    inner: &'a mut tiny_http::Request,
 }
 
 impl<'a> Request<'a> {
@@ -35,33 +16,35 @@ impl<'a> Request<'a> {
         request: &'a mut tiny_http::Request,
         url_values: HashMap<String, String>,
     ) -> Self {
-        let mut buf = Vec::new();
-
-        let bytes_read = match request.as_reader().read_to_end(&mut buf) {
-            Ok(b) => b,
-            Err(e) => {
-                println!("{}", e);
-                0
-            }
-        };
-
         Self {
             url_values,
 
-            url: request.url(),
-
-            secure: request.secure(),
-
-            method: request.method(),
-
-            http_version: request.http_version(),
-
-            headers: request.headers(),
-
-            body: buf.to_vec(),
-
-            body_length: bytes_read,
+            inner: request
         }
+    }
+
+    pub fn url(&self) -> &str {
+        self.inner.url()
+    }
+
+    pub fn headers(&self) -> &[Header] {
+        self.inner.headers()
+    }
+
+    pub fn as_reader(&mut self) -> &mut dyn Read {
+        self.inner.as_reader()
+    }
+
+    pub fn body_to_string(&mut self) -> std::io::Result<String> {
+        let mut body_buf = String::new();
+        
+        self.as_reader().read_to_string(&mut body_buf)?;
+
+        Ok(body_buf)
+    }
+
+    pub fn body_length(&self) -> Option<usize> {
+        self.inner.body_length()
     }
 
     /// Get a url value from the inner map. See the `param` field at `Service#param`

@@ -1,6 +1,6 @@
 use std::fs::File;
 
-use simple_http::{Application, Method, Request, Response, Service, StatusCode, System};
+use simple_http::{Application, Request, Response, Service, StatusCode, System, Command};
 
 // This example should be run from the project root directory using `cargo run --example hello_world`
 
@@ -8,25 +8,25 @@ use simple_http::{Application, Method, Request, Response, Service, StatusCode, S
 // may have multiple systems and they will always be executed in order. A system that returns
 // `Some(...)` will stop the task and produce a response to the request.
 
-fn root(request: &Request) -> Option<Response> {
+fn root(request: &mut Request) -> Command {
     let root_path = std::env::current_dir()
         .expect("Failed to get working directory")
         .join("examples/html");
 
     let Some(target) = request.get_url_value("file") else {
         let Ok(file) = File::open(root_path.join("index.html")) else {
-            dbg!(request.url, request.headers);
-            return Some(Response::empty(StatusCode(404)));
+            dbg!(request.url(), request.headers());
+            return Command::Respond(Response::empty(StatusCode(404)));
         };
 
-        return Some(Response::file(file));
+        return Command::Respond(Response::file(file));
         };
 
     let Ok(file) = File::open(root_path.join(target)) else {
-        return Some(Response::empty(StatusCode(404)));
+        return Command::Respond(Response::empty(StatusCode(404)));
     };
 
-    Some(Response::file(file))
+    Command::Respond(Response::file(file))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
