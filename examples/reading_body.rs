@@ -1,6 +1,6 @@
-use simple_http::{Application, Request, Response, Service, StatusCode, System, Command};
+use simple_http::{Application, Command, Context, Request, Response, Service, StatusCode, System};
 
-fn root(req: &mut Request) -> Command {
+fn root(req: &mut Request, _ctx: &Context) -> Command {
     // Don't expect users to always send valid data in a real application
     let body = req.body_to_string().expect("Failed to parse body");
 
@@ -10,7 +10,7 @@ fn root(req: &mut Request) -> Command {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let root = Service::root().add_system(System::single(root));
+    let root = Service::root().insert_system(System::single(root));
 
     let app = Application::new("0.0.0.0:22555", root)?;
 

@@ -1,4 +1,4 @@
-use simple_http::{Application, Request, Response, Service, StatusCode, System};
+use simple_http::{Application, Command, Context, Request, Response, Service, StatusCode, System};
 
 // This example should be run from the project root directory using `cargo run --example hello_world`
 
@@ -6,7 +6,7 @@ use simple_http::{Application, Request, Response, Service, StatusCode, System};
 // may have multiple systems and they will always be executed in order. A system that returns
 // `Some(...)` will stop the task and produce a response to the request.
 
-fn json(_request: &mut Request) -> Option<Response> {
+fn json(_req: &mut Request, _ctx: &Context) -> Command {
     let content_type = simple_http::Header::from_bytes(
         &b"Content-Type"[..],
         &b"application/json; charset=UTF-8"[..],
@@ -15,7 +15,7 @@ fn json(_request: &mut Request) -> Option<Response> {
 
     let data = b"{\"data\": \"value\"}";
 
-    Some(Response::new(
+    Command::Respond(Response::new(
         StatusCode::from(200),
         vec![content_type],
         &data[..],

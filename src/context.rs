@@ -1,16 +1,21 @@
-use std::sync::Arc;
-
-use anymap::AnyMap;
+use crate::any_map::AnyMap;
 
 /// Wrapping structure for all application wide data
+
 pub struct Context {
-    data: Arc<AnyMap>,
+    pub data: AnyMap,
+}
+
+impl Default for Context {
+    fn default() -> Self {
+        Self {
+            data: AnyMap::new(),
+        }
+    }
 }
 
 impl Context {
-    pub(crate) fn new() -> Self {
-        Self {
-            data: Arc::new(AnyMap::new()),
-        }
+    pub fn new(data: AnyMap) -> Self {
+        Self { data }
     }
 }

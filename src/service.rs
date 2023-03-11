@@ -1,16 +1,14 @@
 use std::collections::HashMap;
 
-use crate::{Request, Response};
+use crate::{websocket::WebsocketDescriptor, Context, Request, Response};
 
 /// Service callback type used by application
+pub type SystemFn = fn(&mut Request, &Context) -> Command;
 
-pub type WebsocketFn = fn();
-
-pub type SystemFn = fn(&mut Request) -> Command;
-
+/// Describes the action of a `System`
 pub enum Command {
     /// Upgrade current connection to a websocket. This assumes the client is already trying to connect over Ws.
-    Upgrade(WebsocketFn),
+    Upgrade(WebsocketDescriptor),
 
     /// Respond to request and don't step further services in tree.
     Respond(Response),
@@ -20,13 +18,13 @@ pub enum Command {
 }
 
 impl Command {
+    /// Checks if command is `None`
     pub fn is_none(&self) -> bool {
         match self {
             Command::None => true,
             _ => false,
         }
     }
-
 }
 
 /// Systems are thin wrappers over a list of functions normally associated with a `Service`. Having
@@ -52,10 +50,9 @@ impl System {
     }
 
     /// Calls a systems underlying functions in order
-    pub fn call(&self, request: &mut Request) -> Command {
+    pub fn call(&self, request: &mut Request, context: &Context) -> Command {
         for system in self.collection.iter() {
-
-            let res = system(request);
+            let res = system(request, context);
 
             if !res.is_none() {
                 return res;
@@ -72,16 +69,33 @@ impl From<SystemFn> for System {
     }
 }
 
+/// Describes which url values to collect after a Service.
+pub enum Param {
+    /// Collect all url segments after attached Service into url value map.
+    CollectAll(String),
+
+    /// Collect some number of url segments into url value map. Run system even if not enough
+    /// values.
+    CollectMaybe(String, usize),
+
+    /// Collect some number of url segments into url value map. Run system only if enough values 
+    CollectExact(String, usize),
+
+    /// Don't Collect any url segments.
+    None,
+}
+
 /// Simple node type, represents a portion of an http url route
 pub struct Service {
     path: String,
-    param: Option<String>,
+    param: Param,
     systems: Option<System>,
     children: HashMap<String, Box<Service>>,
 }
 
 impl Service {
-    pub fn new(path: impl Into<String>, service: Option<SystemFn>, param: Option<String>) -> Self {
+    /// Construct a new service
+    pub fn new(path: impl Into<String>, service: Option<SystemFn>, param: Param) -> Self {
         Self {
             path: path.into(),
             param,
@@ -90,6 +104,8 @@ impl Service {
         }
     }
 
+    /// Pass a closure a mutable reference to self. This is good for creating Tree like structures
+    /// without binding multiple variables.
     pub fn fold(mut self, callback: fn(&mut Self)) -> Self {
         callback(&mut self);
 
@@ -98,47 +114,47 @@ impl Service {
 
     /// Constructs root node for application, all applications should start with a root.
     pub fn root() -> Self {
-        Self::new("root".to_string(), None, None)
+        Self::new("root".to_string(), None, Param::None)
     }
 
-    /// Constructs a node with no additional functionality
+    /// Constructs a node with no additional functionality.
     pub fn with_path(path: impl Into<String>) -> Self {
         Self {
             path: path.into(),
-            param: None,
+            param: Param::None,
             systems: None,
             children: HashMap::new(),
         }
     }
 
-    /// Constructs a node with only a service
+    /// Constructs a Service with a System.
     pub fn with_system(path: impl Into<String>, callback: impl Into<System>) -> Self {
         Self {
             path: path.into(),
-            param: None,
+            param: Param::None,
             systems: Some(callback.into()),
             children: HashMap::new(),
         }
     }
 
-    /// Constructs a parameter type node used for collecting url values
+    /// Constructs a parameter type Service used for collecting url values.
     pub fn with_param(path: impl Into<String>, name: String) -> Self {
         Self {
             path: path.into(),
-            param: Some(name),
+            param: Param::CollectExact(name, 1),
             systems: None,
             children: HashMap::new(),
         }
     }
 
-    pub fn add_system(mut self, system: System) -> Self {
+    pub fn insert_system(mut self, system: System) -> Self {
         self.systems = Some(system);
 
         self
     }
 
-    pub fn add_param(mut self, name: String) -> Self {
-        self.param = Some(name);
+    pub fn insert_param(mut self, param: Param) -> Self {
+        self.param = param;
 
         self
     }
@@ -155,7 +171,7 @@ impl Service {
         &self.systems
     }
 
-    pub fn param(&self) -> &Option<String> {
+    pub fn param(&self) -> &Param {
         &self.param
     }
 }

@@ -5,7 +5,9 @@ use tiny_http::{Server, StatusCode};
 use crate::{
     error::Error,
     response::Response,
-    service::{Service, System, Command},
+    service::{Command, Service, System, Param},
+    websocket::WebsocketService,
+    Context, Request,
 };
 
 /// Main application responsible for handling all net requests, resources, threading, and routing
@@ -13,6 +15,7 @@ use crate::{
 pub struct Application {
     root: Arc<Service>,
     server: Server,
+    context: Arc<Context>,
 }
 
 impl Application {
@@ -29,6 +32,20 @@ impl Application {
         Ok(Self {
             root: Arc::new(root),
             server: Server::http(addr)?,
+            context: Arc::new(Context::default()),
+        })
+    }
+
+    /// Construct a new application given an initial `Context`
+    pub fn with_context(
+        addr: &str,
+        root: Service,
+        context: Context,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync + 'static>> {
+        Ok(Self {
+            root: Arc::new(root),
+            server: Server::http(addr)?,
+            context: Arc::new(context),
         })
     }
 
@@ -41,9 +58,10 @@ impl Application {
             };
 
             let root_clone = self.root.clone();
+            let context_clone = self.context.clone();
 
             std::thread::spawn(move || {
-                let mut url_values = HashMap::<String, String>::new();
+                let mut url_values = HashMap::<String, Vec<String>>::new();
                 let mut services = Vec::<&System>::new();
 
                 let mut cur_node = root_clone.as_ref();
@@ -51,17 +69,44 @@ impl Application {
                 let mut segment_iter = tiny_request.url().split_terminator("/").skip(1);
 
                 'segment_iter: loop {
-
                     if let Some(callback) = cur_node.systems() {
                         services.push(callback)
                     }
 
-                    if let Some(param) = cur_node.param() {
-                        if let Some(url_value) = segment_iter.next() {
-                            url_values.insert(param.clone(), url_value.to_string());
-                        }
-                    }
+                    match cur_node.param() {
+                        Param::CollectExact(name, amount) => {
+                            let mut collected_segments = Vec::new();
+                            for _ in 0..*amount {
+                                let Some(segment) = segment_iter.next() else {
+                                    break 'segment_iter;
+                                };
 
+                                collected_segments.push(segment.to_string());
+                            }
+
+                            url_values.insert(name.to_owned(), collected_segments);
+                        }
+                        Param::CollectMaybe(name, amount) => {
+                            let mut collected_segments = Vec::new();
+                            for _ in 0..*amount {
+                                let Some(segment) = segment_iter.next() else {
+                                   break; 
+                                };
+
+                                collected_segments.push(segment.to_string());
+                            }
+
+                            url_values.insert(name.to_owned(), collected_segments);
+
+                        }
+                        Param::CollectAll(name) => {
+                            let collected_segments = segment_iter.map(|s| s.to_string()).collect::<Vec<String>>();
+                            url_values.insert(name.to_owned(), collected_segments);
+
+                            break 'segment_iter;
+                        }
+                        Param::None => {}
+                    }
 
                     let Some(segment) = segment_iter.next() else {
                         break 'segment_iter;
@@ -78,23 +123,35 @@ impl Application {
                     cur_node = child;
                 }
 
-                let mut request = crate::Request::from_request(&mut tiny_request, url_values);
-                
+                let mut request = Request::from_request(&mut tiny_request, url_values);
+
                 for service in services {
-                    let command = service.call(&mut request);
+                    let command = service.call(&mut request, context_clone.as_ref());
 
                     match command {
                         Command::Respond(response) => {
                             let _ = tiny_request.respond(response.into());
                             return;
-                        },
-                        Command::Upgrade(callback) => {todo!("Implement upgrade");},
+                        }
+                        Command::Upgrade(mut websocket_service) => {
+                            drop(request);
+                            let ws = tiny_request.upgrade(
+                                "websocket",
+                                websocket_service
+                                    .take_initial_response()
+                                    .expect("Response already taken")
+                                    .into(),
+                            );
+
+                            websocket_service.run(context_clone.clone(), ws);
+                            return;
+                        }
                         Command::None => continue,
                     }
                 }
 
                 let _ = tiny_request.respond(Response::empty(StatusCode(500)).into());
-                });
+            });
         }
     }
 }

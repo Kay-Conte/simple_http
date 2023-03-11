@@ -1,6 +1,6 @@
 use std::fs::File;
 
-use simple_http::{Application, Request, Response, Service, StatusCode, System, Command};
+use simple_http::{Application, Command, Context, Request, Response, Service, StatusCode, System, Param};
 
 // This example should be run from the project root directory using `cargo run --example hello_world`
 
@@ -8,21 +8,21 @@ use simple_http::{Application, Request, Response, Service, StatusCode, System, C
 // may have multiple systems and they will always be executed in order. A system that returns
 // `Some(...)` will stop the task and produce a response to the request.
 
-fn root(request: &mut Request) -> Command {
-    let root_path = std::env::current_dir()
+fn root(req: &mut Request, _ctx: &Context) -> Command {
+    let mut path = std::env::current_dir()
         .expect("Failed to get working directory")
         .join("examples/html");
 
-    let Some(target) = request.get_url_value("file") else {
-        let Ok(file) = File::open(root_path.join("index.html")) else {
-            dbg!(request.url(), request.headers());
-            return Command::Respond(Response::empty(StatusCode(404)));
-        };
+    // This value should always exist. Param values are always inserted
+    let segments = req.get_url_value("file").expect("Param value not found");
 
-        return Command::Respond(Response::file(file));
-        };
+    for target in segments {
+        println!("Joining {}", target);
 
-    let Ok(file) = File::open(root_path.join(target)) else {
+        path = path.join(target);
+    }
+
+    let Ok(file) = File::open(path) else {
         return Command::Respond(Response::empty(StatusCode(404)));
     };
 
@@ -35,8 +35,8 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // is fine, the name is just ignored.
     // adding a param will allow you to `get_url_value` from a request, where the next url "segment" is the value
     let root = Service::root()
-        .add_system(System::single(root))
-        .add_param(String::from("file"));
+        .insert_system(System::single(root))
+        .insert_param(Param::CollectAll("file".to_string()));
 
     let app = Application::new("0.0.0.0:80", root)?;
 
