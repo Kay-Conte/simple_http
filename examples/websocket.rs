@@ -2,12 +2,11 @@ use sha1::{Digest, Sha1};
 
 use rustc_serialize::base64::{CharacterSet::Standard, Config, Newline, ToBase64};
 
-use simple_http::{
-    Application, Command, Context, Header, Request, Response, Service, StatusCode, System,
-    WebsocketDescriptor,
-};
+use simple_http::{Application, Command, Header, Request, Response, Service, StatusCode, System};
 
 use std::io::Read;
+
+type Data = ();
 
 fn convert_key(input: &str) -> String {
     let mut input = input.to_string().into_bytes();
@@ -31,40 +30,26 @@ fn convert_key(input: &str) -> String {
         })
 }
 
-fn root(req: &mut Request, _ctx: &Context) -> Command {
+fn root(req: &mut Request, _ctx: &Data) -> Command {
     let Some(key) = req.headers().iter().find(|h| h.field.equiv(&"Sec-Websocket-Key")).map(|h| h.value.clone()) else {
         return Command::Respond(Response::empty(StatusCode(400)));
     };
 
-    let response = Response::empty(StatusCode(101))
-        .with_header("Upgrade: websocket".parse::<Header>().unwrap())
-        .with_header(
-            "Connection: Upgrade"
-                .parse::<Header>()
-                .unwrap(),
-        )
-        
-        .with_header(
-            format!("Sec-Websocket-Accept: {}", convert_key(key.as_str()))
-                .parse::<Header>()
-                .unwrap(),
-        );
+    let mut response = Response::empty(StatusCode(101))
+        .with_header("Upgrade", "websocket")
+        .unwrap()
+        .with_header("Connection", "Upgrade")
+        .unwrap()
+        .with_header("Sec-Websocket-Accept", &convert_key(key.as_str()))
+        .unwrap();
 
-    Command::Upgrade(WebsocketDescriptor::new(response, (), |ws, _ctx, ()| {
-        match ws.next_frame() {
-            Some(frame) => {
-                println!("{:?}", frame); 
-                Some(())
-            }
-            None => None,
-        }
-    }))
+    Command::Respond(response)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let root = Service::root().insert_system(System::single(root));
 
-    let app = Application::new("0.0.0.0:22555", root)?;
+    let app = Application::new("0.0.0.0:22555", root, ())?;
 
     let _ = app.run();
 

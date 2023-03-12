@@ -1,6 +1,8 @@
 use std::fs::File;
 
-use simple_http::{Application, Command, Context, Request, Response, Service, StatusCode, System, Param};
+use simple_http::{Application, Command, Param, Request, Response, Service, StatusCode, System};
+
+type Data = ();
 
 // This example should be run from the project root directory using `cargo run --example hello_world`
 
@@ -8,7 +10,7 @@ use simple_http::{Application, Command, Context, Request, Response, Service, Sta
 // may have multiple systems and they will always be executed in order. A system that returns
 // `Some(...)` will stop the task and produce a response to the request.
 
-fn root(req: &mut Request, _ctx: &Context) -> Command {
+fn root(req: &mut Request, _ctx: &Data) -> Command {
     let mut path = std::env::current_dir()
         .expect("Failed to get working directory")
         .join("examples/html");
@@ -17,9 +19,11 @@ fn root(req: &mut Request, _ctx: &Context) -> Command {
     let segments = req.get_url_value("file").expect("Param value not found");
 
     for target in segments {
-        println!("Joining {}", target);
-
         path = path.join(target);
+    }
+
+    if path.is_dir() {
+        path = path.join("index.html");
     }
 
     let Ok(file) = File::open(path) else {
@@ -38,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .insert_system(System::single(root))
         .insert_param(Param::CollectAll("file".to_string()));
 
-    let app = Application::new("0.0.0.0:80", root)?;
+    let app = Application::new("0.0.0.0:22555", root, ())?;
 
     app.run()?;
 

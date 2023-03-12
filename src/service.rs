@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use crate::{websocket::WebsocketDescriptor, Context, Request, Response};
+use crate::{Request, Response};
 
 /// Service callback type used by application
-pub type SystemFn = fn(&mut Request, &Context) -> Command;
+pub type SystemFn<Data> = fn(&mut Request, &Data) -> Command;
 
 /// Describes the action of a `System`
 pub enum Command {
     /// Upgrade current connection to a websocket. This assumes the client is already trying to connect over Ws.
-    Upgrade(WebsocketDescriptor),
+    Upgrade(),
 
     /// Respond to request and don't step further services in tree.
     Respond(Response),
@@ -30,29 +30,29 @@ impl Command {
 /// Systems are thin wrappers over a list of functions normally associated with a `Service`. Having
 /// multiple systems allows easy reuse of common middleware responsible for gathering information
 /// or parsing data.
-pub struct System {
-    collection: Vec<SystemFn>,
+pub struct System<Data> {
+    collection: Vec<SystemFn<Data>>,
 }
 
-impl System {
+impl<Data> System<Data> {
     /// System constructor
-    pub fn new(services: Vec<SystemFn>) -> Self {
+    pub fn new(services: Vec<SystemFn<Data>>) -> Self {
         Self {
             collection: services,
         }
     }
 
     /// Constructs a system with only one `SystemFn`
-    pub fn single(service: SystemFn) -> Self {
+    pub fn single(service: SystemFn<Data>) -> Self {
         Self {
             collection: vec![service],
         }
     }
 
     /// Calls a systems underlying functions in order
-    pub fn call(&self, request: &mut Request, context: &Context) -> Command {
+    pub fn call(&self, request: &mut Request, data: &Data) -> Command {
         for system in self.collection.iter() {
-            let res = system(request, context);
+            let res = system(request, data);
 
             if !res.is_none() {
                 return res;
@@ -63,8 +63,8 @@ impl System {
     }
 }
 
-impl From<SystemFn> for System {
-    fn from(value: SystemFn) -> Self {
+impl<Data> From<SystemFn<Data>> for System<Data> {
+    fn from(value: SystemFn<Data>) -> Self {
         Self::single(value)
     }
 }
@@ -78,7 +78,7 @@ pub enum Param {
     /// values.
     CollectMaybe(String, usize),
 
-    /// Collect some number of url segments into url value map. Run system only if enough values 
+    /// Collect some number of url segments into url value map. Run system only if enough values
     CollectExact(String, usize),
 
     /// Don't Collect any url segments.
@@ -86,16 +86,16 @@ pub enum Param {
 }
 
 /// Simple node type, represents a portion of an http url route
-pub struct Service {
+pub struct Service<Data> {
     path: String,
     param: Param,
-    systems: Option<System>,
-    children: HashMap<String, Box<Service>>,
+    systems: Option<System<Data>>,
+    children: HashMap<String, Box<Service<Data>>>,
 }
 
-impl Service {
+impl<Data> Service<Data> {
     /// Construct a new service
-    pub fn new(path: impl Into<String>, service: Option<SystemFn>, param: Param) -> Self {
+    pub fn new(path: impl Into<String>, service: Option<SystemFn<Data>>, param: Param) -> Self {
         Self {
             path: path.into(),
             param,
@@ -128,7 +128,7 @@ impl Service {
     }
 
     /// Constructs a Service with a System.
-    pub fn with_system(path: impl Into<String>, callback: impl Into<System>) -> Self {
+    pub fn with_system(path: impl Into<String>, callback: impl Into<System<Data>>) -> Self {
         Self {
             path: path.into(),
             param: Param::None,
@@ -147,7 +147,7 @@ impl Service {
         }
     }
 
-    pub fn insert_system(mut self, system: System) -> Self {
+    pub fn insert_system(mut self, system: System<Data>) -> Self {
         self.systems = Some(system);
 
         self
@@ -159,15 +159,15 @@ impl Service {
         self
     }
 
-    pub fn get_child(&self, path: &str) -> Option<&Box<Service>> {
+    pub fn get_child(&self, path: &str) -> Option<&Box<Service<Data>>> {
         self.children.get(path)
     }
 
-    pub fn insert_child(&mut self, child: Service) {
+    pub fn insert_child(&mut self, child: Service<Data>) {
         self.children.insert(child.path.clone(), child.into());
     }
 
-    pub fn systems(&self) -> &Option<System> {
+    pub fn systems(&self) -> &Option<System<Data>> {
         &self.systems
     }
 

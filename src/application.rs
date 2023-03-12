@@ -5,47 +5,40 @@ use tiny_http::{Server, StatusCode};
 use crate::{
     error::Error,
     response::Response,
-    service::{Command, Service, System, Param},
-    websocket::WebsocketService,
-    Context, Request,
+    service::{Command, Param, Service, System},
+    Request,
 };
 
 /// Main application responsible for handling all net requests, resources, threading, and routing
 /// this should be the base of any application made on simple-http
-pub struct Application {
-    root: Arc<Service>,
+pub struct Application<Data = ()>
+where
+    Data: Send + Sync,
+{
+    root: Arc<Service<Data>>,
     server: Server,
-    context: Arc<Context>,
+    data: Arc<Data>,
 }
 
-impl Application {
-    /// Constructs a new instance of an application given an address structured as: `ip:port` and a
-    /// root node.
+impl<Data> Application<Data>
+where
+    Data: Send + Sync + 'static,
+{
+    /// Constructs a new instance of an application given an address structured as: `ip:port`, a
+    /// root node, and some initial data.
     ///
     /// ```rust
-    /// Application::new("0.0.0.0:80", Node::root())
+    /// Application::new("0.0.0.0:80", Node::root(), ())
     /// ```
     pub fn new(
         addr: &str,
-        root: Service,
+        root: Service<Data>,
+        data: Data,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync + 'static>> {
         Ok(Self {
             root: Arc::new(root),
             server: Server::http(addr)?,
-            context: Arc::new(Context::default()),
-        })
-    }
-
-    /// Construct a new application given an initial `Context`
-    pub fn with_context(
-        addr: &str,
-        root: Service,
-        context: Context,
-    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync + 'static>> {
-        Ok(Self {
-            root: Arc::new(root),
-            server: Server::http(addr)?,
-            context: Arc::new(context),
+            data: Arc::new(data),
         })
     }
 
@@ -58,11 +51,11 @@ impl Application {
             };
 
             let root_clone = self.root.clone();
-            let context_clone = self.context.clone();
+            let context_clone = self.data.clone();
 
             std::thread::spawn(move || {
                 let mut url_values = HashMap::<String, Vec<String>>::new();
-                let mut services = Vec::<&System>::new();
+                let mut services = Vec::<&System<Data>>::new();
 
                 let mut cur_node = root_clone.as_ref();
 
@@ -90,17 +83,17 @@ impl Application {
                             let mut collected_segments = Vec::new();
                             for _ in 0..*amount {
                                 let Some(segment) = segment_iter.next() else {
-                                   break; 
+                                   break;
                                 };
 
                                 collected_segments.push(segment.to_string());
                             }
 
                             url_values.insert(name.to_owned(), collected_segments);
-
                         }
                         Param::CollectAll(name) => {
-                            let collected_segments = segment_iter.map(|s| s.to_string()).collect::<Vec<String>>();
+                            let collected_segments =
+                                segment_iter.map(|s| s.to_string()).collect::<Vec<String>>();
                             url_values.insert(name.to_owned(), collected_segments);
 
                             break 'segment_iter;
@@ -133,17 +126,18 @@ impl Application {
                             let _ = tiny_request.respond(response.into());
                             return;
                         }
-                        Command::Upgrade(mut websocket_service) => {
-                            drop(request);
-                            let ws = tiny_request.upgrade(
-                                "websocket",
-                                websocket_service
-                                    .take_initial_response()
-                                    .expect("Response already taken")
-                                    .into(),
-                            );
+                        Command::Upgrade() => {
+                            todo!("");
+                            //drop(request);
+                            //let ws = tiny_request.upgrade(
+                            //"websocket",
+                            //websocket_service
+                            //.take_initial_response()
+                            //.expect("Response already taken")
+                            //.into(),
+                            //);
 
-                            websocket_service.run(context_clone.clone(), ws);
+                            //websocket_service.run(context_clone.clone(), ws);
                             return;
                         }
                         Command::None => continue,

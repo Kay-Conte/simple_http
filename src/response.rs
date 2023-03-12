@@ -37,12 +37,10 @@ impl Response {
     }
 
     /// Insert a header to the underlying `Response` object
-    pub fn with_header<H>(mut self, header: H) -> Self
-    where
-        H: Into<Header>,
-    {
+    pub fn with_header(mut self, key: &str, value: &str) -> Result<Self, ()> {
+        let header = Header::from_bytes(key, value)?;
         self.0 = self.0.with_header(header);
 
-        self
+        Ok(self)
     }
 }

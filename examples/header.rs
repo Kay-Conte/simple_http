@@ -1,4 +1,4 @@
-use simple_http::{Application, Command, Context, Request, Response, Service, StatusCode, System};
+use simple_http::{Application, Command, Request, Response, Service, StatusCode, System};
 
 // This example should be run from the project root directory using `cargo run --example hello_world`
 
@@ -6,7 +6,9 @@ use simple_http::{Application, Command, Context, Request, Response, Service, Sta
 // may have multiple systems and they will always be executed in order. A system that returns
 // `Some(...)` will stop the task and produce a response to the request.
 
-fn json(_req: &mut Request, _ctx: &Context) -> Command {
+type Data = ();
+
+fn json(_req: &mut Request, _ctx: &Data) -> Command {
     let content_type = simple_http::Header::from_bytes(
         &b"Content-Type"[..],
         &b"application/json; charset=UTF-8"[..],
@@ -29,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let root = Service::root()
         .fold(|s| s.insert_child(Service::with_system("json", System::single(json))));
 
-    let app = Application::new("0.0.0.0:80", root)?;
+    let app = Application::new("0.0.0.0:80", root, ())?;
 
     let _ = app.run();
 
