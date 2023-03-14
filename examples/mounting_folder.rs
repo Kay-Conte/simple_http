@@ -1,6 +1,6 @@
 use std::fs::File;
 
-use simple_http::{Application, Command, Param, Request, Response, Service, StatusCode, System};
+use simple_http::{service::{Command, Service, System, Param}, request::Request, response::Response, StatusCode, application::Application};
 
 type Data = ();
 
@@ -10,7 +10,7 @@ type Data = ();
 // may have multiple systems and they will always be executed in order. A system that returns
 // `Some(...)` will stop the task and produce a response to the request.
 
-fn root(req: &mut Request, _ctx: &Data) -> Command {
+fn root(req: &mut Request, _ctx: &Data) -> Command<Data> {
     let mut path = std::env::current_dir()
         .expect("Failed to get working directory")
         .join("examples/html");

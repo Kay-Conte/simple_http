@@ -1,8 +1,8 @@
-use simple_http::{Application, Command, Request, Response, Service, StatusCode, System};
+use simple_http::{service::{Command, Service, System}, request::Request, response::Response, StatusCode, application::Application};
 
 type Data = ();
 
-fn root(req: &mut Request, _ctx: &Data) -> Command {
+fn root(req: &mut Request, _ctx: &Data) -> Command<Data> {
     // Don't expect users to always send valid data in a real application
     let body = req.body_to_string().expect("Failed to parse body");
 

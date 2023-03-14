@@ -2,6 +2,7 @@
 pub enum Error {
     FailedToInitializeRuntime,
     ServerClosed,
+    Io(std::io::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -11,6 +12,7 @@ impl std::fmt::Display for Error {
         match self {
             FailedToInitializeRuntime => write!(f, "Failed to initialize runtime"),
             ServerClosed => write!(f, "Server closed"),
+            Io(e) => e.fmt(f),
         }
     }
 }

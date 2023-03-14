@@ -1,5 +1,4 @@
-use simple_http::{Application, Command, Request, Response, Service, StatusCode, System};
-
+use simple_http::{service::{Command, Service, System}, request::Request, response::Response, StatusCode, application::Application};
 // This example should be run from the project root directory using `cargo run --example hello_world`
 
 // A system that returns `None` does not produce a response and simply acts as middleware. Services
@@ -8,7 +7,7 @@ use simple_http::{Application, Command, Request, Response, Service, StatusCode, 
 
 type Data = ();
 
-fn json(_req: &mut Request, _ctx: &Data) -> Command {
+fn json(_req: &mut Request, _ctx: &Data) -> Command<Data> {
     let content_type = simple_http::Header::from_bytes(
         &b"Content-Type"[..],
         &b"application/json; charset=UTF-8"[..],

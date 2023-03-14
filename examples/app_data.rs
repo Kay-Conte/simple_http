@@ -1,10 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use simple_http::{Application, Command, Request, Response, Service, StatusCode, System};
+use simple_http::{service::{Command, Service, System}, request::Request, response::Response, StatusCode, application::Application};
 
 type Data = AtomicBool;
 
-fn json(_req: &mut Request, ctx: &Data) -> Command {
+fn json(_req: &mut Request, ctx: &Data) -> Command<Data> {
     ctx.swap(!ctx.load(Ordering::Relaxed), Ordering::Relaxed);
 
     Command::Respond(Response::empty(StatusCode(200)))

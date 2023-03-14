@@ -1,8 +1,8 @@
-use simple_http::{Application, Command, Request, Response, Service, StatusCode, System};
+use simple_http::{service::{Command, Service, System}, request::Request, response::Response, StatusCode, application::Application};
 
 type Data = ();
 
-fn hello_world(_req: &mut Request, _ctx: &Data) -> Command {
+fn hello_world(_req: &mut Request, _ctx: &Data) -> Command<Data> {
     // Responding with `None` will act as a middleware System
     // Responding with `Some` will respond to the request object and move on to the next request
     // All systems registered after receiving a `Some` will not be run

@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use crate::{Request, Response};
+use crate::{websocket::WebsocketServiceExport, request::Request, response::Response};
 
 /// Service callback type used by application
-pub type SystemFn<Data> = fn(&mut Request, &Data) -> Command;
+pub type SystemFn<Data> = fn(&mut Request, &Data) -> Command<Data>;
 
 /// Describes the action of a `System`
-pub enum Command {
+pub enum Command<Data> {
     /// Upgrade current connection to a websocket. This assumes the client is already trying to connect over Ws.
-    Upgrade(),
+    Upgrade(Response, Box<dyn WebsocketServiceExport<Data>>),
 
     /// Respond to request and don't step further services in tree.
     Respond(Response),
@@ -17,7 +17,7 @@ pub enum Command {
     None,
 }
 
-impl Command {
+impl<Data> Command<Data> {
     /// Checks if command is `None`
     pub fn is_none(&self) -> bool {
         match self {
@@ -50,7 +50,7 @@ impl<Data> System<Data> {
     }
 
     /// Calls a systems underlying functions in order
-    pub fn call(&self, request: &mut Request, data: &Data) -> Command {
+    pub fn call(&self, request: &mut Request, data: &Data) -> Command<Data> {
         for system in self.collection.iter() {
             let res = system(request, data);
 

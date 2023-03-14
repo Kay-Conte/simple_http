@@ -6,7 +6,7 @@ use crate::{
     error::Error,
     response::Response,
     service::{Command, Param, Service, System},
-    Request,
+    request::Request, websocket::Websocket,
 };
 
 /// Main application responsible for handling all net requests, resources, threading, and routing
@@ -126,18 +126,14 @@ where
                             let _ = tiny_request.respond(response.into());
                             return;
                         }
-                        Command::Upgrade() => {
-                            todo!("");
-                            //drop(request);
-                            //let ws = tiny_request.upgrade(
-                            //"websocket",
-                            //websocket_service
-                            //.take_initial_response()
-                            //.expect("Response already taken")
-                            //.into(),
-                            //);
+                        Command::Upgrade(response, websocket_service) => {
+                            drop(request);
 
-                            //websocket_service.run(context_clone.clone(), ws);
+                            let ws = tiny_request.upgrade("websocket", response.into());
+
+                            let ws = Websocket::new(ws);
+
+                            websocket_service.run(context_clone, ws);
                             return;
                         }
                         Command::None => continue,
